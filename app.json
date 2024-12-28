@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "prototype",
+    "slug": "prototype",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.kennethfazon14.prototype"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsDownloadToken": "sk.eyJ1IjoicmljYXJkb2pyIiwiYSI6ImNtM2lwcGlndTAzbmQybHM0OWtmMmF3NW8ifQ.uRyJOW0FU2rze-f5WsiU2g"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2807603d-8f5f-4560-8edd-941ced5ffc23"
+      }
+    }
+  }
+}
