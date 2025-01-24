@@ -4,7 +4,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { Picker } from '@react-native-picker/picker';
 import Toast, { BaseToast } from 'react-native-toast-message';
 import api from '../../services/api';
-
+import { useFocusEffect } from '@react-navigation/core';
 const toastConfig = {
   success: (internalState) => (
     <BaseToast
@@ -76,6 +76,13 @@ const JeepList = () => {
       });
   };
 
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchJeeps();
+      fetchDrivers();
+    }, [])
+  );
+
   const fetchDrivers = () => {
     api.get('/api/drivers')
       .then(response => {
@@ -88,25 +95,54 @@ const JeepList = () => {
   };
 
   const handleAddJeep = () => {
+    // Validation check for missing fields
     if (!plateNumber || !selectedDriver || !dropdownValue) {
       Toast.show({ type: 'error', text1: 'Validation Error', text2: 'Please enter a plate number, select a driver, and select a template.' });
       return;
     }
-
-    api.post('/api/jeeps', { plate_number: plateNumber, user_id: selectedDriver, destination: "Sorsogon", template: dropdownValue })
+  
+    // Ensure that the plateNumber is the same as jeep_id (Primary Key)
+    const jeepData = {
+      jeep_id: plateNumber, // Assign the plate_number as the jeep_id
+      plate_number: plateNumber,
+      user_id: selectedDriver,
+      destination: "Sorsogon",  // Replace this with your actual destination logic
+      template: dropdownValue
+    };
+  
+    // API request to add jeep, using plate_number as jeep_id
+    api.post('/api/jeeps', jeepData)
       .then(response => {
         Toast.show({ type: 'success', text1: 'Jeep added successfully!' });
-        setAddModalVisible(false);
-        fetchJeeps();
+        setAddModalVisible(false);  // Close the modal after success
+        fetchJeeps();  // Refresh the jeep list
       })
       .catch(error => {
         console.error('Error adding jeep:', error);
         Toast.show({ type: 'error', text1: 'Error adding jeep', text2: error.message });
       });
   };
-
+  
   const handleEditJeep = () => {
-    api.put(`/api/jeeps/${selectedJeep.id}`, { plate_number: plateNumber, user_id: selectedDriver })
+    const jeepData = {
+      plate_number: plateNumber,
+      user_id: selectedDriver,
+    };
+    
+    // Make API request to update the jeep's status
+    api.put(`/api/jeeps/${selectedJeep.id}/status`, { status: dropdownValue })
+      .then(response => {
+        Toast.show({ type: 'success', text1: `Jeep status updated to ${dropdownValue}` });
+        setEditModalVisible(false);
+        fetchJeeps(); // Refresh the jeep list
+      })
+      .catch(error => {
+        console.error('Error updating jeep status:', error);
+        Toast.show({ type: 'error', text1: 'Error updating jeep status', text2: error.message });
+      });
+  
+    // Also update the jeep details (plate number, driver, etc.)
+    api.put(`/api/jeeps/${selectedJeep.id}`, jeepData)
       .then(response => {
         Toast.show({ type: 'success', text1: 'Jeep updated successfully!' });
         setEditModalVisible(false);
@@ -117,6 +153,7 @@ const JeepList = () => {
         Toast.show({ type: 'error', text1: 'Error updating jeep', text2: error.message });
       });
   };
+  
 
   const handleDeleteJeep = (jeepId) => {
     Alert.alert(
@@ -140,11 +177,14 @@ const JeepList = () => {
   };
 
   const openEditModal = (jeep) => {
-    setSelectedJeep(jeep);
-    setPlateNumber(jeep.plate_number);
-    setSelectedDriver(jeep.assigned_driver_id);
-    setEditModalVisible(true);
-  };
+  // Set the selected jeep and set the dropdown to the jeep's current status
+  setSelectedJeep(jeep);
+  setPlateNumber(jeep.plate_number);
+  setSelectedDriver(jeep.assigned_driver_id);
+  setDropdownValue(jeep.status); // Set the status in the dropdown dynamically
+  setEditModalVisible(true);
+};
+
 
   const renderItem = ({ item }) => (
     <View style={styles.item}>
@@ -168,7 +208,7 @@ const JeepList = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Jeep List</Text>
+        <Text style={styles.title}>Jeeps</Text>
         <TouchableOpacity
           style={styles.addButton}
           onPress={() => {
@@ -204,16 +244,18 @@ const JeepList = () => {
               style={styles.picker}
             >
               <Picker.Item label="Select Driver" value={null} />
-              {drivers.map(driver => (
-                <Picker.Item 
-                  key={driver.id} 
-                  label={driver.fullname} 
-                  value={driver.id} 
-                  style={styles.pickerItem}
-                  enabled={!assignedDrivers.has(driver.id)} 
-                />
-              ))}
-            </Picker>
+        {drivers
+          .sort((a, b) => a.lastname.localeCompare(b.lastname)) // Sort by lastname
+          .map(driver => (
+            <Picker.Item
+              key={driver.id}
+              label={driver.lastname + " " + driver.firstname}
+              value={driver.id}
+              style={styles.pickerItem}
+              enabled={!assignedDrivers.has(driver.id)} 
+            />
+          ))}
+      </Picker>
            
       {/* Dropdown Button */}
       <TouchableOpacity 
@@ -243,7 +285,7 @@ const JeepList = () => {
       >
         <View style={styles.b}>
           <View style={styles.a}>
-            <Text style={styles.modalTitle}>Choose an Template</Text>
+            <Text style={styles.modalTitle}>Choose a Template</Text>
 
             {/* Image Options - Horizontal Layout */}
             <ScrollView 
@@ -279,39 +321,54 @@ const JeepList = () => {
         </View>
       </Modal>
 
-      {/* Edit Jeep Modal */}
-      <Modal visible={editModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Jeep</Text>
-            <TextInput
-              value={plateNumber}
-              onChangeText={setPlateNumber}
-              placeholder="Plate Number"
-              style={styles.input}
-            />
-            <Picker
-              selectedValue={selectedDriver}
-              onValueChange={(itemValue) => setSelectedDriver(itemValue)}
-              style={styles.picker}
-            >
-              {drivers.map(driver => (
-                <Picker.Item 
-                  key={driver.id} 
-                  label={driver.fullname} 
-                  value={driver.id} 
-                />
-              ))}
-            </Picker>
-            <TouchableOpacity style={styles.saveButton} onPress={handleEditJeep}>
-              <Text style={styles.saveButtonText}>Save</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-              <Text style={styles.cancelButton}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+
+<Modal visible={editModalVisible} animationType="slide" transparent={true}>
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalContent}>
+      <Text style={styles.modalTitle}>Edit Jeep</Text>
+      <TextInput
+        value={plateNumber}
+        onChangeText={setPlateNumber}
+        placeholder="Plate Number"
+        style={styles.input}
+      />
+      <Picker
+        selectedValue={selectedDriver}
+        onValueChange={(itemValue) => setSelectedDriver(itemValue)}
+        style={styles.picker}
+      >
+        {drivers
+
+         .sort((a, b) => a.lastname.localeCompare(b.lastname)) // Sort by lastname
+          .map(driver => (
+          <Picker.Item 
+            key={driver.id} 
+            label={driver.lastname + " " + driver.firstname} 
+            value={driver.id} 
+          />
+        ))}
+      </Picker>
+      
+      {/* Dropdown for Status */}
+      <Picker
+        selectedValue={dropdownValue}  // This will hold the selected status
+        onValueChange={(itemValue) => setDropdownValue(itemValue)}
+        style={styles.picker}
+      >
+        <Picker.Item label="Active" value="active" />
+        <Picker.Item label="Inactive" value="inactive" />
+      </Picker>
+
+      <TouchableOpacity style={styles.saveButton} onPress={handleEditJeep}>
+        <Text style={styles.saveButtonText}>Save</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+        <Text style={styles.cancelButton}>Cancel</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
 
       <Toast config={toastConfig} />
     </View>

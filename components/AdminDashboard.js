@@ -75,8 +75,8 @@ const CustomDrawerContent = (props) => {
               name={
                 route.name === 'Home' ? 'home-outline' :
                 route.name === 'Customize' ? 'settings-outline' :
-                route.name === 'Driverlist' ? 'person-outline' :
-                route.name === 'JeepList' ? 'car-outline' :
+                route.name === 'Drivers' ? 'person-outline' :
+                route.name === 'Jeeps' ? 'car-outline' :
                 'document-outline' // Default for Reports
               }
               size={26}
@@ -130,17 +130,17 @@ export default function AdminDashboard() {
           }}
         />
         <Drawer.Screen
-          name="Driverlist"
+          name="Drivers"
           component={Driverlist}
           options={{
-            headerTitle: () => <Text style={styles.headerText}>Drivers</Text>,
+            headerTitle: () => <Text style={styles.headerText}></Text>,
           }}
         />
         <Drawer.Screen
-          name="JeepList"
+          name="Jeeps"
           component={JeepList}
           options={{
-            headerTitle: () => <Text style={styles.headerText}>Jeeps</Text>,
+            headerTitle: () => <Text style={styles.headerText}></Text>,
           }}
         />
         <Drawer.Screen

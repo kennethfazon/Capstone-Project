@@ -7,15 +7,13 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  
-  Button,
   Pressable
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import api from '../../services/api';
-import Modal from 'react-native-modal'; 
+import Modal from 'react-native-modal';
 
 const standbyImage = require('./standby.png');
 const inprocessImage = require('./inprocess.png');
@@ -23,6 +21,7 @@ const ongoingImage = require('./ongoing.png');
 
 const Pamana = ({ navigation }) => {
   const [jeepStatuses, setJeepStatuses] = useState({});
+  const [jeepPlateNumbers, setJeepPlateNumbers] = useState({}); 
   const [jeepIds, setJeepIds] = useState([]);
   const [selectedJeep, setSelectedJeep] = useState(null);
   const [tripDetails, setTripDetails] = useState(null);
@@ -30,24 +29,52 @@ const Pamana = ({ navigation }) => {
   const [inProcessJeep, setInProcessJeep] = useState(null);
   const [disableAllExceptInProcess, setDisableAllExceptInProcess] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
+  const [inQueueJeep, setInQueueJeep] = useState(null);
+
   useEffect(() => {
     fetchAllJeeps();
     fetchJeepStatuses();
     getSelectedJeepFromStorage();
   }, []);
+
   useEffect(() => {
     if (modalVisible) {
       const timer = setInterval(() => {
         const now = new Date();
         const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         setCurrentTime(timeString);
-      }, 1000); 
+      }, 1000);
 
-      // Clear the interval when modal is closed or unmounted
       return () => clearInterval(timer);
     }
   }, [modalVisible]);
 
+  const handleViewSeatsPress = async (jeep_id) => {
+    try {
+      // Fetch the seat data from the backend using the jeep_id
+      const response = await api.get(`/api/seats/${jeep_id}`);
+      
+      if (response.data) {
+        const { template } = response.data;
+  
+        // Navigate to the correct screen based on the template
+        if (template === 1) {
+          navigation.navigate('Seats', { jeep_id });
+        } else if (template === 2) {
+          navigation.navigate('SeatsTwo', { jeep_id });
+        } else {
+          Alert.alert('Error', 'Unknown jeep template.');
+        }
+      } else {
+        Alert.alert('Error', 'Failed to fetch seat data.');
+      }
+    } catch (error) {
+      console.error('Error fetching seat data:', error);
+      Alert.alert('Error', 'Failed to fetch seat data.');
+    }
+  };
+  
+  
 
   const fetchAllJeeps = () => {
     api.get('/getAllJeeps')
@@ -57,10 +84,14 @@ const Pamana = ({ navigation }) => {
           setJeepIds(jeepsWithGubat.map((jeep) => jeep.jeep_id));
 
           const updatedStatuses = {};
+          const plateNumbers = {}; // Store plate numbers for each jeep
           jeepsWithGubat.forEach((jeep) => {
-            updatedStatuses[jeep.jeep_id] = 'standby';
+            // Initialize the jeep's status as standby by default
+            updatedStatuses[jeep.jeep_id] = jeep.status === 'inactive' ? 'inactive' : 'standby';
+            plateNumbers[jeep.jeep_id] = jeep.plate_number;  // Store plate number
           });
           setJeepStatuses(updatedStatuses);
+          setJeepPlateNumbers(plateNumbers);  // Update plate numbers state
         } else {
           console.error('Error fetching jeeps:', response.data.message);
         }
@@ -74,13 +105,24 @@ const Pamana = ({ navigation }) => {
     api.get('/getJeepStatuses')
       .then((response) => {
         if (response.data.success) {
-          setJeepStatuses(response.data.jeepStatuses);
-  
+          const statuses = response.data.jeepStatuses;
+          setJeepStatuses(statuses);
+
+          // Find the jeep that is currently inQueue
+          const inQueue = Object.keys(statuses).find(jeepId => statuses[jeepId] === 'inQueue');
+          setInQueueJeep(inQueue || null);
+
+          // If a jeep is inQueue, disable all inTransit and standby jeeps
+          if (inQueue) {
+            setDisableAllExceptInProcess(true);
+          } else {
+            setDisableAllExceptInProcess(false);
+          }
+
           // Check if the selected jeep is inTransit
-          if (selectedJeep && response.data.jeepStatuses[selectedJeep] === 'inTransit') {
+          if (selectedJeep && statuses[selectedJeep] === 'inTransit') {
             setSelectedJeep(null);
-            AsyncStorage.removeItem('SelectedJeep') // Clear from storage
-              .catch((error) => console.error('Error clearing selected jeep:', error));
+            AsyncStorage.removeItem('SelectedJeep'); // Clear from storage
           }
         } else {
           console.error('Error fetching statuses:', response.data.message);
@@ -90,7 +132,6 @@ const Pamana = ({ navigation }) => {
         console.error('Error:', error);
       });
   };
-  
 
   const getSelectedJeepFromStorage = async () => {
     try {
@@ -104,6 +145,8 @@ const Pamana = ({ navigation }) => {
   };
 
   const handleJeepPress = (jeepId) => {
+    console.log('Jeep ID:', jeepId); // Log the jeepId for debugging
+    
     if (selectedJeep === jeepId) {
       fetchTripDetails(jeepId);
       setModalVisible(true);
@@ -120,19 +163,23 @@ const Pamana = ({ navigation }) => {
           {
             text: 'OK',
             onPress: async () => {
-              api.post('/insertTripSchedule', { jeepId })
-                .then(async (response) => {
-                  if (response.data.success) {
-                    setSelectedJeep(jeepId);
-                    await AsyncStorage.setItem('SelectedJeep', jeepId.toString());
-                    fetchJeepStatuses();
-                  } else {
-                    console.error('Error scheduling trip:', response.data.message);
-                  }
-                })
-                .catch((error) => {
-                  console.error('Error:', error);
-                });
+              try {
+                // Log the data being sent to the server
+                console.log('Sending data to API:', { jeepId });
+                
+                const response = await api.post('/insertTripSchedule', { jeepId });
+  
+                if (response.data.success) {
+                  console.log('Trip scheduled successfully', response.data);
+                  setSelectedJeep(jeepId);
+                  await AsyncStorage.setItem('SelectedJeep', jeepId.toString());
+                  fetchJeepStatuses();
+                } else {
+                  console.error('Error scheduling trip:', response.data.message);
+                }
+              } catch (error) {
+                console.error('Error sending request:', error); // Log detailed error information
+              }
             },
           },
         ],
@@ -140,6 +187,7 @@ const Pamana = ({ navigation }) => {
       );
     }
   };
+  
 
   const fetchTripDetails = (jeepId) => {
     api.get(`/getTripDetails/${jeepId}`)
@@ -154,7 +202,6 @@ const Pamana = ({ navigation }) => {
         console.error('Error fetching trip details:', error);
       });
   };
-  
 
   const handleSaveClick = async (jeepId) => {
     api.post('/updateJeepStatus', { jeepId, status: 'inTransit' })
@@ -172,7 +219,6 @@ const Pamana = ({ navigation }) => {
       });
   };
 
-
   return (
     <View style={styles.container}>
       <View style={styles.legendContainer}>
@@ -188,51 +234,68 @@ const Pamana = ({ navigation }) => {
           <View style={[styles.legendBox, styles.unavailableSeat]} />
           <Text style={styles.legendText}>In Transit</Text>
         </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendBox, styles.inactiveSeat]} />
+        </View>
       </View>
 
       <Text style={styles.headerTitle}>Pamana Terminal</Text>
 
       <View style={styles.body}>
         <TouchableOpacity style={styles.assignButton}>
-        <Text style={styles.assignButtonText}>
-    {selectedJeep ? `Jeep ${selectedJeep}` : 'No Jeep Assigned'}
-  </Text>
+          <Text style={styles.assignButtonText}>
+            {selectedJeep ? `Jeep ${jeepPlateNumbers[selectedJeep]}` : 'No Jeep Assigned'}  {/* Show plate_number */}
+          </Text>
         </TouchableOpacity>
         <Text style={styles.assignButtonLabel}>Assigned Jeep</Text>
 
         <ScrollView contentContainerStyle={styles.jeepGrid}>
-        {jeepIds.map((jeepId) => {
-          const jeepStatus = jeepStatuses[jeepId];
-          const jeepImage = jeepStatus === 'inTransit'
-            ? ongoingImage
-            : jeepStatus === 'inQueue' || selectedJeep === jeepId
-              ? inprocessImage
-              : standbyImage;
+          {jeepIds.map((jeepId) => {
+            const jeepStatus = jeepStatuses[jeepId];
+            const jeepImage =
+              jeepStatus === 'inTransit'
+                ? ongoingImage
+                : jeepStatus === 'inQueue' || selectedJeep === jeepId
+                ? inprocessImage
+                : jeepStatus === 'inactive'
+                ? standbyImage
+                : standbyImage;
 
-          const isDisabled = disableAllExceptInProcess
-            ? (jeepId !== inProcessJeep && jeepId !== selectedJeep)
-            : jeepStatus === 'inTransit';
+            const isDisabled =
+              jeepStatus === 'inactive' ||
+              jeepStatus === 'inTransit' ||
+              (disableAllExceptInProcess && jeepStatus !== 'inQueue');
 
-          return (
-            <TouchableOpacity
-                key={jeepId}
-                onPress={() => handleJeepPress(jeepId)}
-                style={[styles.activeJeep, isDisabled && styles.disabledJeep]}
-                disabled={isDisabled}
-              >
-                <Image source={jeepImage} style={styles.jeepImage} />
-                <Text style={styles.jeepLabel}>
-                  {jeepStatus === 'inTransit'
-                    ? `InTransit\nJeep Number: ${jeepId}`
-                    : jeepStatus === 'inQueue'
-                    ? `InQueue\nJeep Number: ${jeepId}`
-                    : `Standby\nJeep Number: ${jeepId}`}
-                </Text>
-              </TouchableOpacity>
-          
-          );
-        })}
-      </ScrollView>
+            return (
+              <TouchableOpacity
+  key={jeepId}
+  onPress={() => handleJeepPress(jeepId)}
+  style={[styles.activeJeep, isDisabled && styles.disabledJeep]}
+  disabled={isDisabled}
+>
+  <Image source={jeepImage} style={styles.jeepImage} />
+  <Text style={styles.jeepLabel}>
+    {jeepStatus === 'inTransit'
+      ? `InTransit\nPlate Number: ${jeepPlateNumbers[jeepId]}`
+      : jeepStatus === 'inQueue'
+      ? `InQueue\nPlate Number: ${jeepPlateNumbers[jeepId]}`
+      : jeepStatus === 'inactive'
+      ? `Inactive\nPlate Number: ${jeepPlateNumbers[jeepId]}`
+      : `Standby\nPlate Number: ${jeepPlateNumbers[jeepId]}`}
+  </Text>
+
+  {/* Add the View Seats button */}
+  <TouchableOpacity
+    onPress={() => handleViewSeatsPress(jeepId)} // Define a handler for the button
+    style={styles.viewSeatsButton}
+  >
+    <Text style={styles.viewSeatsButtonText}>View Seats</Text>
+  </TouchableOpacity>
+</TouchableOpacity>
+
+            );
+          })}
+        </ScrollView>
 
         {/* Bottom Sheet Modal */}
         <Modal
@@ -254,8 +317,8 @@ const Pamana = ({ navigation }) => {
               <>
                 <View style={styles.tripInfoContainer}>
                   <View style={styles.tripInfoRow}>
-                    <Text style={styles.tripInfoLabel}>Jeep Number:</Text>
-                    <Text style={styles.tripInfoValue}>{tripDetails.jeep_id}</Text>
+                    <Text style={styles.tripInfoLabel}>Plate Number:</Text>
+                    <Text style={styles.tripInfoValue}>{tripDetails.plate_number}</Text> 
                   </View>
                   <View style={styles.tripInfoRow}>
                     <Text style={styles.tripInfoLabel}>Driver:</Text>
@@ -277,7 +340,7 @@ const Pamana = ({ navigation }) => {
 
                 <View style={styles.buttonContainer}>
                   <Pressable style={styles.saveButton} onPress={() => handleSaveClick(tripDetails.jeep_id)}>
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    <Text style={styles.saveButtonText}>Depart</Text>
                   </Pressable>
                   <Pressable style={styles.cancelButton} onPress={() => setModalVisible(false)}>
                     <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -290,24 +353,11 @@ const Pamana = ({ navigation }) => {
           </View>
         </Modal>
       </View>
-
-      {/* Bottom Navigation */}
-      <View style={styles.navBar}>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('AdminDashboard')}>
-          <Icon name="home-outline" size={30} color="#007bff" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.plusButton} onPress={() => navigation.navigate('Pamana')}>
-          <Icon name="add-outline" size={40} color="white" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Settings')}>
-          <Icon name="settings-outline" size={30} color="#748c94" />
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   container: { 
@@ -324,6 +374,18 @@ const styles = StyleSheet.create({
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  viewSeatsButton: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    backgroundColor: '#007BFF',
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewSeatsButtonText: {
+    color: '#fff',
+    fontSize: 14,
   },
   legendBox: {
     width: 16,
@@ -421,17 +483,17 @@ disabledJeep: {
   opacity: 0.6,
 },
 jeepImage: {
-  width: 80,
-  height: 60,
-  marginRight: 10, // Add spacing between the image and text
+  width: 50,
+  height: 50,
+  marginRight: 10,
 },
 jeepLabel: {
-  flex: 1,
-  textAlign: 'left',
-  fontSize: 16,
-  color: '#333',
+  flex: 1, // ensures that the text takes up remaining space
+  fontSize: 12,
   fontFamily: 'Poppins_400Regular',
 },
+  
+
 
   bottomModal: {
     justifyContent: 'flex-end',

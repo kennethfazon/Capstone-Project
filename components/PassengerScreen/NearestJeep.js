@@ -240,9 +240,9 @@ const handleHistoryItemPress = (ticketId) => {
                 <View style={styles.cardContent}>
                   <View style={styles.cardHeader}>
                     <Ionicons name="location-outline" size={24} color="#007bff" />
-                    <Text style={styles.cardTitle}>{item.destination || 'Unknown Destination'}</Text>
+                    <Text style={styles.cardTitle}>Standby</Text>
                   </View>
-                  <Text style={styles.cardInfo}>Jeep ID: {item.jeep_id || 'Unknown'}</Text>
+                  <Text style={styles.cardInfo}>Plate Number: {item.plate_number || 'Unknown'}</Text>
                   <Text style={styles.cardInfo}>Available Seats: {item.available_seats}</Text>
                 </View>
                 <TouchableOpacity
@@ -370,8 +370,8 @@ const handleHistoryItemPress = (ticketId) => {
                     <Ionicons name="location-outline" size={24} color="#007bff" />
                     <Text style={styles.cardTitle}>{item.status || 'Unknown Destination'}</Text>
                   </View>
-                  <Text style={styles.cardInfo}>Jeep ID: {item.jeep_id || 'Unknown Jeep'}</Text>
-                  <Text style={styles.cardInfo}>Status: {item.status || 'Unknown'}</Text>
+                  <Text style={styles.cardInfo}>Jeep Number: {item.plate_number || 'Unknown Jeep'}</Text>
+                  
                   <Text style={styles.cardInfo}>Available Seats: {item.available_seats}</Text>
                 </View>
                 <TouchableOpacity

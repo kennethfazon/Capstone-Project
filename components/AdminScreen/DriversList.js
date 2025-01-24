@@ -20,7 +20,9 @@ const Driverlist = ({ navigation }) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [fullname, setFullname] = useState('');
+  const [lastname, setLastname] = useState('');
+  const [firstname, setFirstname] = useState('');
+  const [middlename, setMiddlename] = useState('');
   const [cpNumber, setCpNumber] = useState('');
 
   const [toastVisible, setToastVisible] = useState(false);
@@ -104,18 +106,18 @@ const Driverlist = ({ navigation }) => {
   };
 
   const handleRegisterOrUpdate = async () => {
-    if (!username || !password || !fullname || !cpNumber) {
+    if (!username || !password || !lastname || !firstname || !middlename || !cpNumber) {
       showToast('All fields are required.', 'error');
       return;
     }
 
     try {
       if (editMode) {
-        await api.put(`/users/${selectedUser.id}`, { username, password, fullname, cp_number: cpNumber, typeofuser: 'driver' });
-        setUsers(users.map(user => user.id === selectedUser.id ? { ...user, username, fullname, cp_number: cpNumber } : user));
+        await api.put(`/users/${selectedUser.id}`, { username, password, lastname, firstname, middlename, cp_number: cpNumber, typeofuser: 'driver' });
+        setUsers(users.map(user => user.id === selectedUser.id ? { ...user, username, lastname, firstname, middlename, cp_number: cpNumber } : user));
         showToast('User updated successfully!', 'success');
       } else {
-        await api.post('/register', { username, password, fullname, cp_number: cpNumber, typeofuser: 'driver' });
+        await api.post('/register', { username, password, lastname, firstname, middlename, cp_number: cpNumber, typeofuser: 'driver' });
         fetchUsers(); // Refresh users list
         showToast('User registered successfully!', 'success');
       }
@@ -130,7 +132,9 @@ const Driverlist = ({ navigation }) => {
     setSelectedUser(user);
     setUsername(user.username);
     setPassword(''); // Do not pre-fill password
-    setFullname(user.fullname);
+    setLastname(user.lastname);
+    setFirstname(user.firstname);
+    setMiddlename(user.middlename);
     setCpNumber(user.cp_number);
     setModalVisible(true);
   };
@@ -164,7 +168,9 @@ const Driverlist = ({ navigation }) => {
   const resetForm = () => {
     setUsername('');
     setPassword('');
-    setFullname('');
+    setLastname('');
+    setFirstname('');
+    setMiddlename('');
     setCpNumber('');
     setModalVisible(false);
     setEditMode(false);
@@ -173,7 +179,7 @@ const Driverlist = ({ navigation }) => {
 
   const renderItem = ({ item }) => (
     <View style={styles.item}>
-      <Text style={styles.name}>{item.fullname}</Text>
+      <Text style={styles.name}>{item.lastname} {item.firstname}</Text>
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.editButton} onPress={() => handleEdit(item)}>
           <Icon name="pencil" size={20} color="#fff" />
@@ -189,16 +195,17 @@ const Driverlist = ({ navigation }) => {
     <>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Driver List</Text>
+          <Text style={styles.title}>Drivers</Text>
           <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
             <Icon name="add" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
         <FlatList
-          data={users}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id.toString()}
-        />
+  data={users.sort((a, b) => a.lastname.localeCompare(b.lastname))} // Sort by last name
+  renderItem={renderItem}
+  keyExtractor={(item) => item.id.toString()}
+/>
+
 
         {/* Modal for Add/Edit User */}
         <Modal visible={modalVisible} animationType="slide" transparent={true}>
@@ -221,9 +228,21 @@ const Driverlist = ({ navigation }) => {
               />
               <TextInput
                 style={styles.input}
-                placeholder="Full Name"
-                value={fullname}
-                onChangeText={setFullname}
+                placeholder="Last Name"
+                value={lastname}
+                onChangeText={setLastname}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="First Name"
+                value={firstname}
+                onChangeText={setFirstname}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Middle Name"
+                value={middlename}
+                onChangeText={setMiddlename}
               />
               <TextInput
                 style={styles.input}

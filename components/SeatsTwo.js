@@ -7,6 +7,7 @@ import {
   Alert,
   Dimensions,
   ActivityIndicator,
+  Linking,
   Image // Import ActivityIndicator for loading spinner
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -118,61 +119,82 @@ const SeatsTwo = () => {
     ["E1", "E2", null, " ","E3"], // Row 6
     ["E4", "F1", "F2", "F3", "F4"],
   ];
-
   const getDiscountedPrice = () => {
     if (passengerType !== 'regular') {
-      return totalPrice - (selectedSeats.length * discount); // Apply discount for each selected seat
+      return totalPrice - (selectedSeats.length * discount); // Apply discount
     }
     return totalPrice;
+  };
+  const checkPaymentStatus = async (ticketId) => {
+    try {
+      const response = await api.get(`/api/payment-status/${ticketId}`);
+      return response.data.status === 'paid'; 
+    } catch (error) {
+      
+      return false; // Default to failed status
+    }
   };
   
 
   
-
+  const handlePayNow = async () => {
+    if (!selectedCoordinates) {
+      Alert.alert('No Coordinates Selected', 'Please select a route before proceeding.');
+      return;
+    }
   
-
-const handlePayNow = async () => {
-  if (!selectedCoordinates) {
-    Alert.alert('No Coordinates Selected', 'Please select a route before proceeding.');
-    return;
-  }
-
-  const date = new Date().toISOString().split('T')[0]; // Get current date (YYYY-MM-DD)
-  const time = new Date().toLocaleTimeString(); // Get current time
-
-  // Check if a device ID already exists in AsyncStorage
-  let deviceId = await AsyncStorage.getItem('device_id');
-
-  // If device ID doesn't exist, generate a new one and store it
-  if (!deviceId) {
-    deviceId = UUID.v4(); // Generate new device ID
-    await AsyncStorage.setItem('device_id', deviceId); // Save it in AsyncStorage
-  }
-
-  setIsLoading(true); // Show loading indicator
-
-  try {
-    // Send ticket data to backend with the device ID
-    const ticketResponse = await api.post('/api/ticket', {
-      jeep_id,
-      date,
-      time,
-      route: 'Gubat | Sorsogon', // Customize route if needed
-      departure: "GUBAT/PAMANA TERMINAL",
-      arrival: "SORSOGON TERMINAL CENTRO",
-      type_of_passenger: passengerType,
-      selected_seats: selectedSeats.join(', '), // Join selected seats to string
-      amount: getDiscountedPrice(),
-      latitude: selectedCoordinates.latitude, // Pass selected latitude
-      longitude: selectedCoordinates.longitude, // Pass selected longitude
-      device_id: deviceId, // Include the device ID (either new or existing)
-    });
-
-    if (ticketResponse.status === 200) {
-      const ticketId = ticketResponse.data.ticketId; // Get the inserted ticket ID
-
-      // Now reserve the selected seats
-      const resIdResponse = await api.get(`/api/seats/${jeep_id}`);
+    const date = new Date().toISOString().split('T')[0]; // Get current date (YYYY-MM-DD)
+    const time = new Date().toLocaleTimeString(); // Get current time
+  
+    // Check if a device ID already exists in AsyncStorage
+    let deviceId = await AsyncStorage.getItem('device_id');
+  
+    // If device ID doesn't exist, generate a new one and store it
+    if (!deviceId) {
+      deviceId = UUID.v4(); // Generate new device ID
+      await AsyncStorage.setItem('device_id', deviceId); // Save it in AsyncStorage
+    }
+  
+    setIsLoading(true); // Show loading indicator
+  
+    try {
+      // Send ticket data to backend with the device ID
+      const ticketResponse = await api.post('/api/ticket', {
+        jeep_id,
+        date,
+        time,
+        route: 'Gubat | Sorsogon', // Customize route if needed
+        departure: "GUBAT/PAMANA TERMINAL",
+        arrival: "SORSOGON TERMINAL CENTRO",
+        type_of_passenger: passengerType,
+        selected_seats: selectedSeats.join(', '), // Join selected seats to string
+        amount: getDiscountedPrice(),
+        latitude: selectedCoordinates.latitude, // Pass selected latitude
+        longitude: selectedCoordinates.longitude, // Pass selected longitude
+        device_id: deviceId, // Include the device ID (either new or existing)
+      });
+  
+      if (ticketResponse.status === 200) {
+        // Successfully created ticket, now get the payment link
+        const ticketId = ticketResponse.data.ticketId; // Get the inserted ticket ID
+        // Now reserve the selected seats
+        // Now reserve the selected seats
+     
+        // Now, create the PayMongo payment link
+        const paymentLinkResponse = await api.post('/api/create-payment', {
+          amount: getDiscountedPrice(),
+          currency: 'PHP',
+          description: `Ticket for jeep ${jeep_id} - ${selectedSeats.join(', ')}`,
+        });
+  
+        if (paymentLinkResponse.status === 200) {
+          const checkoutUrl = paymentLinkResponse.data.checkoutUrl;
+  
+          // Redirect to PayMongo checkout
+          setIsLoading(false); // Stop loading
+          Linking.openURL(checkoutUrl); // Redirect user to the PayMongo checkout page
+  
+           const resIdResponse = await api.get(`/api/seats/${jeep_id}`);
       const res_id = resIdResponse.data.res_id;
 
       if (res_id) {
@@ -190,15 +212,21 @@ const handlePayNow = async () => {
         console.error('Reservation ID not found');
         setIsLoading(false); // Stop loading if error
       }
-    } else {
-      console.error('Error inserting ticket:', ticketResponse.data.message);
+
+        } else {
+          console.error('Error creating payment link:', paymentLinkResponse.data.message);
+          setIsLoading(false);
+        }
+      } else {
+        console.error('Error inserting ticket:', ticketResponse.data.message);
+        setIsLoading(false); // Stop loading if error
+      }
+    } catch (error) {
+      console.error('Error processing payment:', error);
       setIsLoading(false); // Stop loading if error
     }
-  } catch (error) {
-    console.error('Error processing payment:', error);
-    setIsLoading(false); // Stop loading if error
-  }
-};
+  };
+  
 
   
   return (

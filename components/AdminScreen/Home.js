@@ -5,9 +5,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import api from '../../services/api';
 const Home = ({ navigation }) => {
-  const [username, setUsername] = useState(''); // State to hold the username
+  const [fullName, setFullName] = useState(''); // State to hold the full name
 
-  // Function to fetch the logged-in user's name
+  // Function to fetch the logged-in user's full name
   const fetchUserName = async () => {
     const token = await AsyncStorage.getItem('userToken'); // Retrieve token
 
@@ -21,8 +21,8 @@ const Home = ({ navigation }) => {
         headers: { 'x-access-token': token }, // Pass the token in the request
       });
       
-      // Set the username based on the response data
-      setUsername(response.data.fullname); 
+      // Set the full name based on the response data
+      setFullName(response.data.fullName || ""); 
     } catch (err) {
       Alert.alert('Error fetching user data: ' + err.message);
     }
@@ -78,7 +78,7 @@ const Home = ({ navigation }) => {
     <>
       <View>
         {/* Display the username here */}
-        <Text style={styles.name}>Welcome, {username}</Text>  
+        <Text style={styles.name}>Welcome, {fullName}</Text>  
         <Text>Admin Dashboard</Text>
         
       </View>

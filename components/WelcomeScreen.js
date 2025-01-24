@@ -50,12 +50,7 @@ const WelcomeScreen = ({ navigation }) => {
 
       {/* New Attractive Grid Section */}
       <View style={styles.gridContainer}>
-        {[...Array(6)].map((_, index) => (
-          <View key={index} style={styles.card}>
-            <Icon name="event-seat" size={40} color="#fff" />
-            <Text style={styles.cardText}>Seat {index + 1}</Text>
-          </View>
-        ))}
+       
       </View>
 
       {/* Footer Section */}
